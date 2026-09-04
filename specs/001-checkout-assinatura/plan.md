@@ -87,8 +87,9 @@ tests/
 
 `src/core/ports/` define os protocolos que o domínio consome. `SalesNetwork` expõe
 `fetch_order`, `is_subscription_active`, `pause`, `reinstate`, `extend`, `change_date`,
-`change_address`, `open_ticket` — e **não expõe `cancel`**, porque a rede não oferece. A
-ausência é deliberada e documentada no próprio protocolo, para que ninguém tente implementá-la.
+`change_address`, `open_ticket` e `cancel_subscription` — este último implementado, na
+ClickBank, como criação de ticket `cncl`. O núcleo pede "cancele"; traduzir isso para o
+vocabulário da rede é problema do adapter, e é exatamente para isso que a porta existe.
 
 ---
 
@@ -96,10 +97,19 @@ ausência é deliberada e documentada no próprio protocolo, para que ninguém t
 
 ### Ingestão do INS — nunca processar na requisição
 
-O endpoint faz três coisas e para: valida a autenticidade, grava o `NetworkEvent` bruto,
-enfileira a tarefa. Responde rápido, sempre. O processamento roda em Celery, com retry
-exponencial, e é idempotente pela constraint única — reentrega colide no banco e vira no-op,
-não uma segunda transição.
+A ClickBank dá **3 segundos** para uma resposta na faixa 200, retenta a cada 4 horas no máximo
+5 vezes, e **não oferece reenvio manual** depois disso. Um evento perdido é perdido para
+sempre. Isso torna a regra abaixo requisito de sobrevivência, não estilo.
+
+O endpoint faz três coisas e para: decripta e valida, grava o `NetworkEvent` bruto, enfileira a
+tarefa. Nada mais entra nesse caminho — nem consulta a terceiro, nem e-mail, nem escrita
+externa. O processamento roda em Celery, com retry exponencial, e é idempotente pela constraint
+única: reentrega colide no banco e vira no-op, não uma segunda transição.
+
+A autenticidade vem só da decriptação — não há allowlist de IP. AES-256-CBC com chave derivada
+dos **32 primeiros caracteres do SHA-1 hexadecimal** da chave secreta; é SHA-1, não SHA-256, e
+é hex, não bytes. Esse detalhe quebra a maioria das implementações de primeira viagem, e por
+isso entra na suíte de contrato antes de qualquer outra coisa.
 
 O evento bruto é preservado independentemente do resultado do processamento. Quando a
 reconciliação apontar divergência daqui a três meses, o payload original é a única prova de
@@ -117,6 +127,10 @@ guarda o id do evento que causou cada transição.
 
 Trial não existe na v1, mas o estado `em_trial` fica declarado e inalcançável, para que
 introduzi-lo depois seja abrir uma transição, não reescrever a máquina.
+
+A pesquisa R5 acrescentou um estado que a spec não previa: `inadimplente`, alimentado por
+`CUSTOMER_AUTH_FAILURE`. Sem ele, uma assinatura cuja cobrança foi recusada permanece "ativa"
+no nosso lado — continuamos expedindo produto que a rede parou de faturar.
 
 ### Isolamento de dado de saúde
 
@@ -138,17 +152,33 @@ Prazos ativos na 001: aviso pré-cobrança (FR-021), pedido não expedido em 30 
 intenção de cancelar sem confirmação (FR-017). Os prazos de evento adverso e de notificação de
 claim entram nas specs 003 e 004, na mesma tabela.
 
-### Cancelamento — o desenho que sobrevive à falta do endpoint
+### Cancelamento — revisado pela pesquisa R1
+
+O plano original mandava o cliente ao portal da ClickBank. A pesquisa mostrou que aquele fluxo
+tem **dez passos**, exige e-mail mais um de três identificadores e não aceita deep-link — e que
+a Tickets API deixa o vendedor criar o cancelamento em nome do cliente, com efeito tipicamente
+imediato. O redirecionamento foi descartado.
 
 1. Cliente clica em encerrar na área de conta.
-2. `CancellationIntent` é gravado **antes** de qualquer navegação, com timestamp e sessão.
-3. Cliente é levado ao fluxo da ClickBank em um clique. Pausa é oferecida **ao lado**, nunca
-   antes nem no caminho.
-4. Um prazo é aberto. Se a notificação de cancelamento não chegar na janela, o sistema abre
-   ticket pela Tickets API em nome do cliente e alerta o suporte.
-5. Quando a notificação chega, a intenção é conciliada e o prazo fechado.
+2. `CancellationIntent` é gravado, com timestamp e sessão.
+3. Na mesma ação, `POST /1.3/tickets/{receipt}` com `type=cncl`. Sem sair do nosso site, sem
+   etapa intermediária.
+4. Pausa aparece **ao lado**, como alternativa oferecida — nunca antes, nunca no caminho.
+5. O `CANCEL-REBILL` que chega pelo INS confirma e fecha a intenção.
+6. Se a chamada falhar: o caminho manual do portal é exibido com número do pedido e e-mail já
+   na tela para copiar, o suporte é alertado, e a tarefa segue tentando.
 
-O passo 2 é o que transforma "não controlamos a ação" em "temos prova de que o cliente pediu".
+Duas regras que a pesquisa acrescentou, ambas com penalidade de plataforma ou regulatória:
+
+- **Nunca alterar o tipo de um ticket sem consentimento do cliente** — a ClickBank revoga o
+  privilégio de gestão de tickets. Converter `cncl` em `tech` para ganhar tempo está fora.
+- **O motivo enviado nunca pode ser, por padrão, o código de desconhecimento dos termos.**
+  Seria fabricar, com nossa própria mão, um registro sugerindo que a recorrência não foi
+  divulgada — a alegação exata que ROSCA e a CARL punem.
+
+A ClickBank recomenda tentar salvar a assinatura antes de processar o cancelamento. É
+orientação da plataforma, não obrigação, e colide com o princípio II. A constituição prevalece:
+recuperação acontece depois do cancelamento efetivado.
 
 ### Reconciliação
 
@@ -165,15 +195,16 @@ Cada item é uma incógnita que muda a implementação. Nenhum vira código ante
 
 | # | Questão | Impacto | Origem |
 |---|---|---|---|
-| R1 | A ClickBank aceita deep-link para o fluxo de cancelamento com o recibo pré-preenchido? | Decide se o princípio II é cumprido em um clique ou se precisa de instrução na tela | novo |
+| ~~R1~~ | ~~Deep-link para o cancelamento?~~ | **Resolvido.** Não há deep-link, mas a Tickets API cancela em nome do cliente. Desenho revisto acima | novo |
 | R2 | Rigor aceitável da verificação de idade em NY: autodeclaração registrada ou verificação por terceiro? | Muda o custo e o atrito do pré-checkout. **Exige parecer jurídico nos EUA** | pendência 2 |
 | R3 | Qual 3PL, e ele expõe webhook de tracking ou exige polling? | Define o adapter de fulfillment e o desenho do FR-025/026 | pendência 4 |
 | R4 | Autenticação da área de conta: senha ou magic link pelo e-mail do pedido? | Atrito aqui é atrito de cancelamento, e portanto risco regulatório | pendência 5 |
-| R5 | Obter chave do INS 8.0 e payloads reais de sandbox para os testes de contrato | Sem payload real, o adapter é escrito contra suposição | novo |
-| R6 | Janela entre intenção de cancelar e abertura de ticket | Proposta: 48h. Confirmar com a operação | pendência 1 |
+| ~~R5~~ | ~~Especificação do INS 8.0~~ | **Resolvido.** Esquema, criptografia, tipos e limites documentados em `research.md`. Falta só gerar os payloads de teste com a conta real | novo |
+| ~~R6~~ | ~~Janela entre intenção e abertura de ticket~~ | **Resolvido: não há espera.** O ticket é criado na mesma ação do clique | pendência 1 |
+| R8 | Valores exatos do enum `reason` de `cncl` | Bloqueia o adapter de cancelamento | `GET /tickets/schema` |
 | R7 | Quantos dias antes da cobrança enviar o aviso do FR-021 | Proposta: 3 dias | novo |
 
-Saída desta fase: `research.md`, com uma decisão e uma justificativa por linha.
+Saída desta fase: `research.md` — **escrito, com R1, R5 e R6 resolvidos.** Restam R2 (jurídico), R3, R4, R7 e R8.
 
 ## Fase 1 — desenho
 
@@ -208,6 +239,6 @@ Esses testes são a diferença entre a constituição ser um documento e ser uma
 
 - [x] Contexto técnico definido
 - [x] Verificação constitucional — sem desvios
-- [ ] Fase 0 — `research.md`
+- [x] Fase 0 — `research.md` — parcial: R1, R5, R6 resolvidos; bloqueada em R2
 - [ ] Fase 1 — `data-model.md`, `contracts/`, `quickstart.md`
 - [ ] Fase 2 — `tasks.md`

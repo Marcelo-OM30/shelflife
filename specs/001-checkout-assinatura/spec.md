@@ -1,6 +1,6 @@
 # Spec 001 — Checkout e ciclo de vida da assinatura
 
-**Branch**: `001-checkout-assinatura` · **Criada**: 2026-09-03 · **Status**: Em planejamento
+**Branch**: `001-checkout-assinatura` · **Criada**: 2026-09-03 · **Status**: Fase 0 concluída em parte — bloqueada em R2
 **Constituição aplicável**: princípios II, IV, V, VI, VII, VIII
 
 **Entrada**: permitir que um visitante do funil compre um suplemento com entrega recorrente
@@ -16,10 +16,15 @@ Registrado no topo porque delimita todo o resto. Verificado na documentação da
 - **O checkout não é nosso.** A ClickBank hospeda o order form e é a varejista da transação.
   Não recebemos nem armazenamos dado de cartão, e não controlamos os campos daquela tela.
   `[CB-01]`
-- **Não existe endpoint de cancelamento.** A Orders API v1.3 oferece `pause`, `reinstate`,
-  `extend`, `changeDate`, `changeProduct`, `changeAddress` e um `HEAD` que responde 204 se a
-  assinatura está ativa e 403 se não. Cancelar é ação do cliente no portal da ClickBank ou
-  de um ticket aberto por nós. `[CB-07] [CB-10]`
+- **A Orders API não cancela — a Tickets API sim.** A Orders API v1.3 oferece `pause`,
+  `reinstate`, `extend`, `changeDate`, `changeProduct`, `changeAddress` e um `HEAD` que
+  responde 204 se a assinatura está ativa e 403 se não. O cancelamento se faz por
+  `POST /1.3/tickets/{receipt}` com `type=cncl`, que o vendedor pode criar em nome do cliente
+  e que é *"tipicamente finalizado imediatamente"*. O portal do cliente exige dez passos e não
+  aceita deep-link; por isso ele é o recurso de exceção, não o caminho. `[CB-07] [CB-10]`
+- **O INS dá 3 segundos e cinco tentativas.** Resposta na faixa 200 em até 3s; retentativa a
+  cada 4h, no máximo 5 vezes, sem reenvio manual depois disso. Evento perdido é perdido para
+  sempre. `[CB-08]`
 - **O reembolso é decidido pela ClickBank**, em janela de 60 dias para o cliente e 365 dias
   quando pedido por nós. Negligenciar tickets de devolução pode suspender a conta. `[CB-10]`
 - **Se houver produto físico em qualquer etapa do upsell flow**, o order form inicial já
@@ -80,12 +85,18 @@ em um clique, pausar ou encerrar a assinatura.
    das remessas e um controle de encerramento visível sem rolagem adicional. (Princípio II)
 
 9. **Dado** que o cliente aciona o encerramento, **quando** ele confirma, **então** o sistema
-   registra a intenção com timestamp, leva-o ao fluxo de cancelamento da ClickBank em um
-   clique, e nenhuma etapa de retenção é obrigatória para chegar lá. (Princípio II)
+   registra a intenção com timestamp e cria o ticket de cancelamento na rede em nome dele, sem
+   sair da nossa área de conta e sem nenhuma etapa de retenção no caminho. (Princípio II)
+   `[CB-07]`
 
-10. **Dado** que a intenção de cancelar foi registrada, **quando** a notificação de
-    cancelamento não chega em [PRECISA DEFINIR: janela — sugestão 48h], **então** o sistema
-    abre ticket na ClickBank em nome do cliente e alerta o suporte. `[CB-07] [CB-10]`
+10. **Dado** que a criação do ticket falha, **quando** o erro é detectado, **então** o cliente
+    vê o caminho manual do portal da ClickBank com o número do pedido e o e-mail da compra
+    já exibidos na tela para copiar, o suporte é alertado, e o sistema segue tentando.
+    `[CB-07] [CB-10]`
+
+10b. **Dado** que uma cobrança recorrente falha por recusa de autorização, **quando** o evento
+    chega, **então** a assinatura entra em estado de inadimplência — nunca permanece como ativa
+    faturando normalmente. `[CB-08]`
 
 11. **Dado** que o pedido não foi expedido, **quando** completam 30 dias da cobrança,
     **então** o cliente é notificado do atraso com oferta de reembolso, e o caso entra na
@@ -131,19 +142,27 @@ em um clique, pausar ou encerrar a assinatura.
   timestamp e sessão, retendo por no mínimo 3 anos e permitindo recuperação por cliente e
   data. `[ST-03]` (Princípio VII)
 - **FR-007** O sistema DEVE encaminhar ao order form correto da ClickBank com o SKU e o
-  upsell flow da oferta, preservando parâmetros de rastreio de origem. `[CB-05]`
+  upsell flow da oferta, preservando parâmetros de rastreio de origem, e DEVE carregar o
+  identificador do registro de consentimento como variável de vendedor para que ele retorne na
+  notificação. O identificador DEVE ser token opaco e não sequencial, e a correlação DEVE ser
+  tratada como indício conferível, nunca como autoridade. `[CB-05] [CB-08]` (Princípio V)
 - **FR-008** O sistema NÃO DEVE coletar, transportar ou registrar dado de cartão em nenhuma
   hipótese. `[CB-01]`
 
 ### Ingestão e estado
 
-- **FR-009** O sistema DEVE receber notificações da rede em endpoint HTTPS e validar a
-  autenticidade de cada uma antes de processá-la. `[CB-08]`
+- **FR-009** O sistema DEVE receber notificações da rede em endpoint HTTPS com certificado
+  válido e validar a autenticidade de cada uma antes de processá-la. O endpoint DEVE responder
+  na faixa 200 em menos de 3 segundos e NÃO PODE executar nenhum trabalho além de validar,
+  persistir o evento bruto e enfileirar. `[CB-08]`
 - **FR-010** O processamento DEVE ser idempotente por identificador de transação; reentrega
   não pode alterar o estado uma segunda vez. `[CB-08]`
 - **FR-011** O sistema DEVE manter uma máquina de estados de assinatura com, no mínimo:
-  `ativa`, `em trial`, `pausada`, `cancelada`, `reembolsada`, `em chargeback`, e transitar
-  apenas por evento recebido da rede. `[CB-08]` (Princípio V)
+  `ativa`, `pausada`, `inadimplente`, `cancelada`, `reembolsada`, `em chargeback`, e transitar
+  apenas por evento recebido da rede. O estado `em trial` fica declarado e inalcançável na v1.
+  `[CB-08]` (Princípio V)
+- **FR-011a** O sistema DEVE tratar troca de produto de assinatura, que chega no formato
+  `SKU antigo->novo`, atualizando a oferta vinculada. `[CB-08]`
 - **FR-012** O sistema DEVE reconciliar periodicamente o estado local contra a rede — via
   consulta de status por recibo — e **alertar** divergência sem sobrescrever. `[CB-07]`
 - **FR-013** O sistema DEVE preservar o evento bruto recebido, para auditoria, além do estado
@@ -155,10 +174,18 @@ em um clique, pausar ou encerrar a assinatura.
   rastreio de remessas.
 - **FR-015** O sistema DEVE oferecer encerramento em no máximo o mesmo número de cliques da
   contratação, sem etapa de retenção obrigatória e sem exigir contato humano. (Princípio II)
-- **FR-016** O sistema DEVE registrar a intenção de cancelar no momento do clique, antes de
-  qualquer hand-off, e usá-la como prova de que o pedido partiu do cliente. (Princípio II)
-- **FR-017** O sistema DEVE abrir ticket em nome do cliente quando o cancelamento não se
-  confirmar na janela definida. `[CB-07] [CB-10]`
+- **FR-016** O sistema DEVE registrar a intenção de cancelar no momento do clique e, na mesma
+  ação, criar o ticket de cancelamento na rede em nome do cliente. O motivo enviado é opcional
+  para o cliente e obrigatório para a API; o padrão NÃO PODE ser o código de desconhecimento
+  dos termos, que produziria registro sugerindo falha de divulgação nossa. `[CB-07] [FTC-04]`
+- **FR-017** O sistema DEVE, quando a criação do ticket falhar, exibir o caminho manual com
+  número do pedido e e-mail da compra prontos para copiar, alertar o suporte e continuar
+  tentando. `[CB-07] [CB-10]`
+- **FR-017a** O sistema NUNCA DEVE alterar o tipo de um ticket sem consentimento do cliente.
+  A plataforma revoga o privilégio de gestão de tickets de quem o faz. `[CB-10]`
+- **FR-017b** O sistema NÃO DEVE interpor qualquer oferta de retenção antes do encerramento
+  efetivado. Recuperação, se houver, acontece depois. A ClickBank sugere o contrário; a
+  constituição prevalece. (Princípio II)
 - **FR-018** O sistema DEVE oferecer pausa como alternativa **oferecida, nunca interposta**,
   respeitando o limite de 60 dias de restart. `[CB-07]`
 - **FR-019** O sistema DEVE permitir alteração de endereço de entrega de assinatura ativa e
@@ -217,8 +244,9 @@ artwork de rótulo (spec 006 — `CB-03`, `FDA-06`).
 
 ## Precisa definir
 
-1. **[PRECISA DEFINIR]** Janela entre a intenção de cancelar e a abertura automática de
-   ticket. Sugestão: 48h.
+1. ~~Janela entre a intenção de cancelar e a abertura automática de ticket.~~
+   **Resolvida em 2026-09-03 pela pesquisa R1:** não há janela, porque não há espera. O ticket
+   é criado na mesma ação do clique via `POST /tickets/{receipt}`. Ver `research.md`.
 2. **[PRECISA DEFINIR]** Método de verificação de idade: autodeclaração com registro, ou
    verificação por terceiro. A lei de NY exige verificação; o rigor aceitável precisa de
    parecer jurídico nos EUA.

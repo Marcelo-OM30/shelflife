@@ -1,7 +1,12 @@
-# HealthSupply
+# shelflife
 
 Aplicação de venda de suplementos para o mercado americano, distribuída via ClickBank
 e, futuramente, outras redes.
+
+O nome é literal: quase tudo que este sistema controla tem prazo de validade —
+a substanciação de uma afirmação, a autorização de um depoimento, o certificado
+de seguro exigido pela plataforma, a janela de reembolso de 60 dias, os 15 dias
+úteis para reportar um evento adverso grave. Vigiar validade é o trabalho.
 
 ## Por onde começar
 

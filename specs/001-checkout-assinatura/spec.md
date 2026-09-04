@@ -1,6 +1,6 @@
 # Spec 001 — Checkout e ciclo de vida da assinatura
 
-**Branch**: `001-checkout-assinatura` · **Criada**: 2026-09-03 · **Status**: Rascunho
+**Branch**: `001-checkout-assinatura` · **Criada**: 2026-09-03 · **Status**: Em planejamento
 **Constituição aplicável**: princípios II, IV, V, VI, VII, VIII
 
 **Entrada**: permitir que um visitante do funil compre um suplemento com entrega recorrente
@@ -70,9 +70,10 @@ em um clique, pausar ou encerrar a assinatura.
    **quando** o sistema a processa, **então** ela é rejeitada, registrada e alertada — nunca
    aplicada ao estado. `[CB-08]`
 
-7. **Dado** que existe um trial que vira cobrança, **quando** faltam de 3 a 7 dias para a
-   conversão, **então** o cliente recebe aviso com valor, data e instrução de cancelamento.
-   `[PAY-01]`
+7. **Dado** que existe uma cobrança recorrente agendada, **quando** faltam [PRECISA DEFINIR:
+   dias — sugestão 3] para o débito, **então** o cliente recebe aviso com valor, data e
+   instrução de cancelamento. Sem trial na v1, este aviso não é exigido pela bandeira, mas é
+   mantido por decisão de projeto: é a defesa mais barata contra chargeback. `[PAY-01] [PAY-02]`
 
 8. **Dado** que o cliente abre a área de conta, **quando** a página carrega, **então** ele vê
    status da assinatura, valor e data da próxima cobrança, histórico de cobranças, rastreio
@@ -166,8 +167,11 @@ em um clique, pausar ou encerrar a assinatura.
 ### Prazos e comunicação
 
 - **FR-020** O sistema DEVE enviar recibo a cada cobrança. `[PAY-01]`
-- **FR-021** O sistema DEVE enviar lembrete de 3 a 7 dias antes da conversão de trial, com
-  valor, data e instrução de cancelamento. `[PAY-01]`
+- **FR-021** O sistema DEVE enviar aviso antes de cada cobrança recorrente, com valor, data e
+  instrução de cancelamento. Como a v1 não tem trial, a exigência estrita de lembrete de 3 a 7
+  dias do programa de alto risco da Mastercard não se aplica; o aviso é mantido por decisão de
+  projeto contra chargeback. Se um trial for introduzido depois, este requisito volta a ser
+  obrigatório com a janela de 3 a 7 dias. `[PAY-01] [PAY-02]`
 - **FR-022** O sistema DEVE enviar aviso de renovação de 15 a 45 dias antes em ciclos de um
   ano ou mais. `[ST-03]`
 - **FR-023** O sistema DEVE detectar pedido não expedido em 30 dias, notificar o cliente e
@@ -218,8 +222,10 @@ artwork de rótulo (spec 006 — `CB-03`, `FDA-06`).
 2. **[PRECISA DEFINIR]** Método de verificação de idade: autodeclaração com registro, ou
    verificação por terceiro. A lei de NY exige verificação; o rigor aceitável precisa de
    parecer jurídico nos EUA.
-3. **[PRECISA DEFINIR]** Haverá trial na v1? Se sim, todo o bloco `PAY-01` de alto risco
-   passa a valer com peso maior, e o custo de compliance sobe.
+3. ~~Haverá trial na v1?~~ **Decidido em 2026-09-03: não.** A v1 vende com assinatura de
+   reposição, sem trial. Isso mantém a operação fora do Mastercard High-Risk Negative Option,
+   que é desenhado especificamente para trial de produto físico. Introduzir trial depois é uma
+   emenda que reabre FR-021 e exige reavaliação do gateway. `[PAY-01]`
 4. **[PRECISA DEFINIR]** Qual 3PL, e se ele expõe webhook de tracking ou exige polling.
 5. **[PRECISA DEFINIR]** Se a área de conta exige login próprio ou autenticação por recibo —
    decisão que afeta diretamente o atrito do cancelamento (princípio II).

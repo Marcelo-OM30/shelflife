@@ -1,0 +1,60 @@
+{
+  "transactionTime": "2026-09-03T14:22:11-06:00",
+  "receipt": "ABCD1234",
+  "transactionType": "SALE",
+  "vendor": "healthsup",
+  "affiliate": "",
+  "role": "VENDOR",
+  "totalAccountAmount": "58.41",
+  "paymentMethod": "VISA",
+  "totalOrderAmount": "79.00",
+  "version": "8.0",
+  "attemptCount": 1,
+  "totalTaxAmount": "0.00",
+  "totalShippingAmount": "0.00",
+  "currency": "USD",
+  "orderLanguage": "EN",
+  "trackingCodes": ["cr_7f3a91c2e5"],
+  "vendorVariables": {"v1": "cr_7f3a91c2e5"},
+  "lineItems": [
+    {
+      "itemNo": "1",
+      "productTitle": "Daily Joint Support - 3 Bottle Supply",
+      "productPrice": "79.00",
+      "productDiscount": "0.00",
+      "quantity": 1,
+      "shippable": true,
+      "recurring": true,
+      "accountAmount": "58.41",
+      "lineItemType": "ORIGINAL"
+    }
+  ],
+  "customer": {
+    "shipping": {
+      "firstName": "Dana",
+      "lastName": "Whitfield",
+      "fullName": "Dana Whitfield",
+      "email": "dana.whitfield@example.com",
+      "phoneNumber": "2085550147",
+      "address1": "1412 Ridgeway Ave",
+      "address2": "Apt 3",
+      "city": "Boise",
+      "state": "ID",
+      "postalCode": "83702",
+      "country": "US"
+    },
+    "billing": {
+      "fullName": "Dana Whitfield",
+      "email": "dana.whitfield@example.com",
+      "state": "ID",
+      "postalCode": "83702",
+      "country": "US"
+    }
+  },
+  "commonTrackingParameters": {
+    "clickId": "8f21c0a4",
+    "deviceType": "mobile",
+    "os": "iOS",
+    "browser": "Safari"
+  }
+}

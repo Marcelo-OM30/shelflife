@@ -1,6 +1,6 @@
 # Spec 001 — Checkout e ciclo de vida da assinatura
 
-**Branch**: `001-checkout-assinatura` · **Criada**: 2026-09-03 · **Status**: Fase 0 concluída em parte — bloqueada em R2
+**Branch**: `001-checkout-assinatura` · **Criada**: 2026-09-03 · **Status**: Fase 1 concluída — FR-002 bloqueado em R2; ingestão de rebill aguarda R9
 **Constituição aplicável**: princípios II, IV, V, VI, VII, VIII
 
 **Entrada**: permitir que um visitante do funil compre um suplemento com entrega recorrente
@@ -75,8 +75,8 @@ em um clique, pausar ou encerrar a assinatura.
    **quando** o sistema a processa, **então** ela é rejeitada, registrada e alertada — nunca
    aplicada ao estado. `[CB-08]`
 
-7. **Dado** que existe uma cobrança recorrente agendada, **quando** faltam [PRECISA DEFINIR:
-   dias — sugestão 3] para o débito, **então** o cliente recebe aviso com valor, data e
+7. **Dado** que existe uma cobrança recorrente agendada, **quando** faltam 3 dias para o
+   débito (decidido em 2026-09-22), **então** o cliente recebe aviso com valor, data e
    instrução de cancelamento. Sem trial na v1, este aviso não é exigido pela bandeira, mas é
    mantido por decisão de projeto: é a defesa mais barata contra chargeback. `[PAY-01] [PAY-02]`
 
@@ -172,12 +172,22 @@ em um clique, pausar ou encerrar a assinatura.
 
 - **FR-014** O sistema DEVE exibir status, valor e data da próxima cobrança, histórico e
   rastreio de remessas.
+- **FR-014a** O acesso à área de conta DEVE ser por link de uso restrito enviado ao e-mail do
+  pedido, sem senha. Todo e-mail transacional (recibo, aviso pré-cobrança) DEVE levar um link
+  que abre a área de conta diretamente. Alteração de endereço DEVE exigir link recém-pedido;
+  encerramento e pausa, não. (Princípio II)
 - **FR-015** O sistema DEVE oferecer encerramento em no máximo o mesmo número de cliques da
   contratação, sem etapa de retenção obrigatória e sem exigir contato humano. (Princípio II)
 - **FR-016** O sistema DEVE registrar a intenção de cancelar no momento do clique e, na mesma
   ação, criar o ticket de cancelamento na rede em nome do cliente. O motivo enviado é opcional
   para o cliente e obrigatório para a API; o padrão NÃO PODE ser o código de desconhecimento
-  dos termos, que produziria registro sugerindo falha de divulgação nossa. `[CB-07] [FTC-04]`
+  dos termos, que produziria registro sugerindo falha de divulgação nossa, nem qualquer código
+  que afirme algo em nome do cliente; o padrão é o motivo "outro". Se o próprio cliente escolher
+  o motivo de desconhecimento dos termos, ele é enviado como escolhido e abre revisão interna
+  da divulgação da oferta. `[CB-07] [FTC-04]`
+- **FR-016a** O sistema DEVE abrir o ticket de cancelamento apenas contra o item recorrente da
+  assinatura, identificado explicitamente, e recusar a chamada se o item não for recorrente.
+  Na rede, cancelar um item não recorrente o reembolsa. `[CB-07]`
 - **FR-017** O sistema DEVE, quando a criação do ticket falhar, exibir o caminho manual com
   número do pedido e e-mail da compra prontos para copiar, alertar o suporte e continuar
   tentando. `[CB-07] [CB-10]`
@@ -194,8 +204,8 @@ em um clique, pausar ou encerrar a assinatura.
 ### Prazos e comunicação
 
 - **FR-020** O sistema DEVE enviar recibo a cada cobrança. `[PAY-01]`
-- **FR-021** O sistema DEVE enviar aviso antes de cada cobrança recorrente, com valor, data e
-  instrução de cancelamento. Como a v1 não tem trial, a exigência estrita de lembrete de 3 a 7
+- **FR-021** O sistema DEVE enviar aviso 3 dias antes de cada cobrança recorrente, com valor,
+  data e instrução de cancelamento. Como a v1 não tem trial, a exigência estrita de lembrete de 3 a 7
   dias do programa de alto risco da Mastercard não se aplica; o aviso é mantido por decisão de
   projeto contra chargeback. Se um trial for introduzido depois, este requisito volta a ser
   obrigatório com a janela de 3 a 7 dias. `[PAY-01] [PAY-02]`
@@ -255,8 +265,9 @@ artwork de rótulo (spec 006 — `CB-03`, `FDA-06`).
    que é desenhado especificamente para trial de produto físico. Introduzir trial depois é uma
    emenda que reabre FR-021 e exige reavaliação do gateway. `[PAY-01]`
 4. **[PRECISA DEFINIR]** Qual 3PL, e se ele expõe webhook de tracking ou exige polling.
-5. **[PRECISA DEFINIR]** Se a área de conta exige login próprio ou autenticação por recibo —
-   decisão que afeta diretamente o atrito do cancelamento (princípio II).
+5. ~~Se a área de conta exige login próprio ou autenticação por recibo.~~ **Decidido em
+   2026-09-22: magic link pelo e-mail do pedido, sem senha.** Ver FR-014a.
+6. ~~Dias de antecedência do aviso pré-cobrança.~~ **Decidido em 2026-09-22: 3 dias.**
 
 ## Checklist de revisão
 

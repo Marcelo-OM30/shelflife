@@ -161,8 +161,9 @@ imediato. O redirecionamento foi descartado.
 
 1. Cliente clica em encerrar na área de conta.
 2. `CancellationIntent` é gravado, com timestamp e sessão.
-3. Na mesma ação, `POST /1.3/tickets/{receipt}` com `type=cncl`. Sem sair do nosso site, sem
-   etapa intermediária.
+3. Na mesma ação, `POST /1.3/tickets/{receipt}` com `type=cncl` e o `sku` do item recorrente.
+   Sem sair do nosso site, sem etapa intermediária. O `sku` não é opcional para nós: `cncl`
+   em item não recorrente **reembolsa** a venda (FR-016a).
 4. Pausa aparece **ao lado**, como alternativa oferecida — nunca antes, nunca no caminho.
 5. O `CANCEL-REBILL` que chega pelo INS confirma e fecha a intenção.
 6. Se a chamada falhar: o caminho manual do portal é exibido com número do pedido e e-mail já
@@ -174,7 +175,8 @@ Duas regras que a pesquisa acrescentou, ambas com penalidade de plataforma ou re
   privilégio de gestão de tickets. Converter `cncl` em `tech` para ganhar tempo está fora.
 - **O motivo enviado nunca pode ser, por padrão, o código de desconhecimento dos termos.**
   Seria fabricar, com nossa própria mão, um registro sugerindo que a recorrência não foi
-  divulgada — a alegação exata que ROSCA e a CARL punem.
+  divulgada — a alegação exata que ROSCA e a CARL punem. O padrão é `ticket.type.cancel.7`
+  (*Other*); a R8 descartou o de preço, que põe na boca do cliente "não consigo pagar".
 
 A ClickBank recomenda tentar salvar a assinatura antes de processar o cancelamento. É
 orientação da plataforma, não obrigação, e colide com o princípio II. A constituição prevalece:
@@ -182,8 +184,9 @@ recuperação acontece depois do cancelamento efetivado.
 
 ### Reconciliação
 
-Job noturno percorre as assinaturas ativas e consulta `HEAD /orders2/{receipt}` — 204 ativa,
-403 não. Divergência vira linha em `ReconciliationDivergence` e alerta. **Nunca corrige
+Job noturno percorre as assinaturas ativas e consulta `HEAD /orders2/{receipt}` sobre o
+recibo-**mãe** — 204 ativa, 403 não. Em rebill o `HEAD` responde o status do rebill, e o 403
+também significa "não encontrado" e "sem permissão". Divergência vira linha em `ReconciliationDivergence` e alerta. **Nunca corrige
 sozinho**: uma correção automática baseada em leitura pode cancelar entrega de cliente adimplente
 por causa de um 403 transitório de permissão.
 
@@ -198,19 +201,29 @@ Cada item é uma incógnita que muda a implementação. Nenhum vira código ante
 | ~~R1~~ | ~~Deep-link para o cancelamento?~~ | **Resolvido.** Não há deep-link, mas a Tickets API cancela em nome do cliente. Desenho revisto acima | novo |
 | R2 | Rigor aceitável da verificação de idade em NY: autodeclaração registrada ou verificação por terceiro? | Muda o custo e o atrito do pré-checkout. **Exige parecer jurídico nos EUA** | pendência 2 |
 | R3 | Qual 3PL, e ele expõe webhook de tracking ou exige polling? | Define o adapter de fulfillment e o desenho do FR-025/026 | pendência 4 |
-| R4 | Autenticação da área de conta: senha ou magic link pelo e-mail do pedido? | Atrito aqui é atrito de cancelamento, e portanto risco regulatório | pendência 5 |
+| ~~R4~~ | ~~Autenticação da área de conta~~ | **Decidido: magic link**, sem senha. FR-014a, `AccessToken` no `data-model.md` | pendência 5 |
 | ~~R5~~ | ~~Especificação do INS 8.0~~ | **Resolvido.** Esquema, criptografia, tipos e limites documentados em `research.md`. Falta só gerar os payloads de teste com a conta real | novo |
 | ~~R6~~ | ~~Janela entre intenção e abertura de ticket~~ | **Resolvido: não há espera.** O ticket é criado na mesma ação do clique | pendência 1 |
-| R8 | Valores exatos do enum `reason` de `cncl` | Bloqueia o adapter de cancelamento | `GET /tickets/schema` |
-| R7 | Quantos dias antes da cobrança enviar o aviso do FR-021 | Proposta: 3 dias | novo |
+| ~~R8~~ | ~~Valores exatos do enum `reason` de `cncl`~~ | **Resolvido** — não estava no schema, e sim na descrição do serviço. Padrão passa a ser *Other* | novo |
+| ~~R7~~ | ~~Dias do aviso do FR-021~~ | **Decidido: 3 dias** | novo |
+| R9 | Como um `BILL` aponta para o recibo-mãe? | Ingestão de rebill | sandbox |
+| R10 | Retomada de pausa antes do `restartDate` | Retomada do FR-018 | sandbox |
 
-Saída desta fase: `research.md` — **escrito, com R1, R5 e R6 resolvidos.** Restam R2 (jurídico), R3, R4, R7 e R8.
+Saída desta fase: `research.md` — **R1, R5, R6 e R8 resolvidos; R4 e R7 decididos.** Restam R2
+(jurídico), R3 (comercial), R9 e R10 (sandbox). Nenhum deles impede as tasks das partes que
+não tocam: R2 trava só o age gate, R3 só o adapter de fulfillment, R9 só a ingestão de rebill,
+R10 só a retomada antecipada.
 
 ## Fase 1 — desenho
 
 Produz `data-model.md` (entidades da spec com campos, invariantes e a tabela de transições
 permitidas), `contracts/` (formato do INS 8.0 e das chamadas da Orders API que usamos, como
 fixtures versionadas) e `quickstart.md` (subir o ambiente e simular uma venda ponta a ponta).
+
+**Concluída em 2026-09-22.** Os contratos foram escritos a partir das páginas de serviço da
+REST 1.3, não só da documentação em prosa, e a leitura mudou três coisas: FR-016a (cancelar
+item não recorrente reembolsa), consulta de status sempre pelo recibo-mãe, e o papel
+`api_subscription_modifications` na chave de API.
 
 ## Fase 2 — tasks
 
@@ -239,6 +252,6 @@ Esses testes são a diferença entre a constituição ser um documento e ser uma
 
 - [x] Contexto técnico definido
 - [x] Verificação constitucional — sem desvios
-- [x] Fase 0 — `research.md` — parcial: R1, R5, R6 resolvidos; bloqueada em R2
-- [ ] Fase 1 — `data-model.md`, `contracts/`, `quickstart.md`
+- [x] Fase 0 — `research.md` — R1, R5, R6, R8 resolvidos; R4, R7 decididos; abertos R2, R3, R9, R10
+- [x] Fase 1 — `data-model.md`, `contracts/`, `quickstart.md`
 - [ ] Fase 2 — `tasks.md`

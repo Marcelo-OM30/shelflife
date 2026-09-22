@@ -18,16 +18,16 @@ mesmos apps e podem importar Django — nunca `src/adapters/`. Vocabulário de f
 
 ## Fase A — Fundação
 
-- [ ] **T001** Dependências em `pyproject.toml`: `django>=5`, `djangorestframework`, `celery`,
+- [x] **T001** Dependências em `pyproject.toml`: `django>=5`, `djangorestframework`, `celery`,
   `redis`, `psycopg[binary]`; dev: `factory_boy`, `responses`. Instalar `pytest` e confirmar
   que a suíte `unittest` atual roda sob ele sem mudança.
-- [ ] **T002** Projeto Django em `src/config/` (`settings.py`, `urls.py`, `wsgi.py`), com
+- [x] **T002** Projeto Django em `src/config/` (`settings.py`, `urls.py`, `wsgi.py`), com
   settings por variável de ambiente (`quickstart.md`, parte 2).
-- [ ] **T003** Duas bases e router em `src/config/routers.py`: `healthdata` só na base de
+- [x] **T003** Duas bases e router em `src/config/routers.py`: `healthdata` só na base de
   saúde, todo o resto na comercial, `allow_relation` falso entre elas. App `src/healthdata/`
   vazio. Teste: relação entre as bases levanta erro.
-- [ ] **T004** Celery em `src/config/celery.py` (worker + beat), `task_always_eager` nos testes.
-- [ ] **T005** Renomear `CoreIsFrameworkAndVendorFree` para `CoreIsVendorFree` em
+- [x] **T004** Celery em `src/config/celery.py` (worker + beat), `task_always_eager` nos testes.
+- [x] **T005** Renomear `CoreIsFrameworkAndVendorFree` para `CoreIsVendorFree` em
   `tests/compliance/test_architecture.py` — o teste nunca proibiu framework, e o nome não
   pode prometer o que não garante.
 

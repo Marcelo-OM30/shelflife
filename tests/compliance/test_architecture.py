@@ -22,7 +22,7 @@ def core_files():
                 yield os.path.join(base, name)
 
 
-class CoreIsFrameworkAndVendorFree(unittest.TestCase):
+class CoreIsVendorFree(unittest.TestCase):
     def test_core_nao_importa_adapters(self):
         for path in core_files():
             with open(path, encoding="utf-8") as fh:

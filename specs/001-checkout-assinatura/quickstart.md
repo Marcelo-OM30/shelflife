@@ -11,25 +11,46 @@ finge que o ambiente Django já está de pé.
 
 ## Parte 1 — o que roda hoje
 
-Requisitos: Python 3.12 e `cryptography`.
+Requisitos: Python 3.12 e PostgreSQL 16.
 
 ```
-python3 -m unittest discover -s tests -t .
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 ```
 
-Cobre: máquina de estados (`tests/unit/`), decriptação e classificação do INS 8.0
-(`tests/contract/`) e o isolamento do núcleo em relação ao fornecedor (`tests/compliance/`).
+Bases — dois usuários, duas bases, e nenhum dos dois conecta na base do outro:
 
-## Parte 2 — ambiente *(após tasks)*
+```sql
+CREATE ROLE shelflife        LOGIN CREATEDB PASSWORD '...';
+CREATE ROLE shelflife_health LOGIN CREATEDB PASSWORD '...';
+CREATE DATABASE shelflife        OWNER shelflife;
+CREATE DATABASE shelflife_health OWNER shelflife_health;
+REVOKE CONNECT ON DATABASE shelflife        FROM PUBLIC;
+REVOKE CONNECT ON DATABASE shelflife_health FROM PUBLIC;
+```
 
-PostgreSQL 16 com duas bases (`shelflife` e `shelflife_health`, usuários distintos), Redis,
-worker e beat do Celery, conforme `plan.md`. Variáveis mínimas:
+`CREATEDB` é só para desenvolvimento: o Django cria as bases de teste. Em produção, não.
+
+```
+cp .env.example .env                       # preencher as duas URLs
+.venv/bin/python manage.py migrate
+.venv/bin/python manage.py migrate --database=health
+.venv/bin/python -m pytest
+```
+
+A subida recusa as duas URLs com o mesmo usuário ou a mesma base (princípio III).
+
+## Parte 2 — ambiente completo *(após tasks)*
+
+Além do acima: Redis, worker e beat do Celery, conforme `plan.md`. Variáveis:
 
 | Variável | Conteúdo |
 |---|---|
 | `INS_SECRET_KEY` | chave secreta do INS, ≤ 16 caracteres alfanuméricos |
 | `NETWORK_API_KEY` | chave com `api_order_read`, `api_order_write`, `api_subscription_modifications` |
-| `HEALTH_DB_URL` | credencial própria da base de saúde — nunca a mesma da comercial |
+| `DATABASE_URL` | base comercial |
+| `HEALTH_DATABASE_URL` | credencial própria da base de saúde — nunca a mesma da comercial |
+| `DJANGO_SECRET_KEY` | |
+| `CELERY_BROKER_URL` | Redis |
 
 ## Parte 3 — roteiro de validação
 

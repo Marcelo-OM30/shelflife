@@ -20,7 +20,7 @@ de seguro exigido pela plataforma, a janela de reembolso de 60 dias, os 15 dias
 
 | Spec | Assunto | Estado |
 |---|---|---|
-| 001 | Checkout e ciclo de vida da assinatura | Tasks prontas — próximo: Fase A (fundação Django). Age gate bloqueado em R2 (jurídico) |
+| 001 | Checkout e ciclo de vida da assinatura | Fase A feita — próximo: Fase B (regras de domínio). Age gate bloqueado em R2 (jurídico) |
 | 002 | Funil, quiz e captação | Rascunho |
 
 Construído até aqui: a máquina de estados da assinatura e o adapter de notificações
@@ -29,8 +29,13 @@ da ClickBank, que são as peças sem perguntas em aberto.
 ## Testes
 
 ```
-python3 -m unittest discover -s tests -t .
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+cp .env.example .env        # preencher: duas bases, dois usuários
+.venv/bin/python -m pytest
 ```
+
+Os testes de integração precisam do PostgreSQL com os dois usuários do `.env`, ambos com
+`CREATEDB` (o Django cria as bases de teste). Ver `specs/001-checkout-assinatura/quickstart.md`.
 
 `tests/compliance/` tem um teste por restrição inviolável da constituição. É o que
 separa o documento de ser uma restrição de verdade.

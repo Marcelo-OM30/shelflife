@@ -20,7 +20,7 @@ de seguro exigido pela plataforma, a janela de reembolso de 60 dias, os 15 dias
 
 | Spec | Assunto | Estado |
 |---|---|---|
-| 001 | Checkout e ciclo de vida da assinatura | Fase 1 concluída — próximo: `tasks.md`. Age gate bloqueado em R2 (jurídico) |
+| 001 | Checkout e ciclo de vida da assinatura | Tasks prontas — próximo: Fase A (fundação Django). Age gate bloqueado em R2 (jurídico) |
 | 002 | Funil, quiz e captação | Rascunho |
 
 Construído até aqui: a máquina de estados da assinatura e o adapter de notificações

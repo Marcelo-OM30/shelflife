@@ -254,4 +254,4 @@ Esses testes são a diferença entre a constituição ser um documento e ser uma
 - [x] Verificação constitucional — sem desvios
 - [x] Fase 0 — `research.md` — R1, R5, R6, R8 resolvidos; R4, R7 decididos; abertos R2, R3, R9, R10
 - [x] Fase 1 — `data-model.md`, `contracts/`, `quickstart.md`
-- [ ] Fase 2 — `tasks.md`
+- [x] Fase 2 — `tasks.md` (57 tasks; 3 feitas, 4 bloqueadas)
